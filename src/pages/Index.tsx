@@ -24,6 +24,11 @@ const Index = () => {
   const handleInvoiceGenerated = (invoice: InvoiceData) => {
     setCurrentInvoice(invoice);
     setInvoiceHistory(prev => [invoice, ...prev]);
+    // Auto-switch to invoice tab to show sharing options
+    const tabsTrigger = document.querySelector('[value="invoice"]') as HTMLButtonElement;
+    if (tabsTrigger) {
+      tabsTrigger.click();
+    }
   };
 
   const handlePayment = (txHash: string) => {

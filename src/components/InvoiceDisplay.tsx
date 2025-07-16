@@ -213,51 +213,6 @@ const InvoiceDisplay = ({ invoice, onPayment }: InvoiceDisplayProps) => {
             )}
           </div>
 
-          {invoice.status === "pending" && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Payment Token
-                  </Label>
-                  <Select value={paymentToken} onValueChange={setPaymentToken}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((curr) => (
-                        <SelectItem key={curr.value} value={curr.value}>
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">{curr.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {curr.description}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button
-                  onClick={handlePayment}
-                  disabled={isPaymentPending}
-                  variant="success"
-                  className="w-full h-12 text-base font-semibold"
-                >
-                  {isPaymentPending ? (
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Processing Payment...
-                    </div>
-                  ) : (
-                    `Pay ${invoice.amount} ${paymentToken}`
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
         </CardContent>
       </Card>
 
