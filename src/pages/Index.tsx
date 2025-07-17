@@ -2,6 +2,7 @@ import { useState } from "react";
 import WalletConnect from "@/components/WalletConnect";
 import InvoiceGenerator from "@/components/InvoiceGenerator";
 import InvoiceDisplay from "@/components/InvoiceDisplay";
+import { MOCK_INVOICES } from "@/pages/PayInvoice";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Receipt, TrendingUp, Clock, CheckCircle } from "lucide-react";
@@ -11,7 +12,6 @@ interface InvoiceData {
   description: string;
   amount: string;
   currency: string;
-  dueDate: Date | undefined;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   txHash?: string;
@@ -22,6 +22,8 @@ const Index = () => {
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceData[]>([]);
 
   const handleInvoiceGenerated = (invoice: InvoiceData) => {
+    // Store invoice in shared mock data so share links work
+    MOCK_INVOICES[invoice.id] = invoice;
     setCurrentInvoice(invoice);
     setInvoiceHistory(prev => [invoice, ...prev]);
     // Auto-switch to invoice tab to show sharing options

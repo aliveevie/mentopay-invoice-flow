@@ -34,7 +34,6 @@ interface InvoiceData {
   description: string;
   amount: string;
   currency: string;
-  dueDate: Date | undefined;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   txHash?: string;
@@ -47,13 +46,12 @@ const CURRENCIES = [
 ];
 
 // Mock invoice data - In real app, this would come from a database
-const MOCK_INVOICES: Record<string, InvoiceData> = {
+export const MOCK_INVOICES: Record<string, InvoiceData> = {
   "INV-001": {
     id: "INV-001",
     description: "Web development services for Q4 2024",
     amount: "1500.00",
     currency: "cUSD",
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     createdAt: new Date(),
     status: "pending"
   }
@@ -222,23 +220,13 @@ const PayInvoice = () => {
                   <p className="text-foreground">{invoice.description}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      Amount
-                    </h3>
-                    <p className="text-2xl font-bold font-mono">
-                      {invoice.amount} {invoice.currency}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                      Due Date
-                    </h3>
-                    <p className="text-foreground">
-                      {invoice.dueDate ? format(invoice.dueDate, "PPP") : "No due date"}
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">
+                    Amount
+                  </h3>
+                  <p className="text-2xl font-bold font-mono">
+                    {invoice.amount} {invoice.currency}
+                  </p>
                 </div>
 
                 {invoice.txHash && (

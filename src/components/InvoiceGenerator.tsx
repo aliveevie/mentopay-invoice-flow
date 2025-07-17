@@ -10,23 +10,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarIcon, Receipt, QrCode } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { Receipt, QrCode } from "lucide-react";
 
 interface InvoiceData {
   id: string;
   description: string;
   amount: string;
   currency: string;
-  dueDate: Date | undefined;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
 }
@@ -45,12 +36,11 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("");
-  const [dueDate, setDueDate] = useState<Date>();
   const [invoiceCounter, setInvoiceCounter] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const generateInvoice = async () => {
-    if (!description || !amount || !currency || !dueDate) return;
+    if (!description || !amount || !currency) return;
 
     setIsGenerating(true);
     
@@ -62,7 +52,6 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
       description,
       amount,
       currency,
-      dueDate,
       createdAt: new Date(),
       status: "pending",
     };
@@ -74,7 +63,6 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
     setDescription("");
     setAmount("");
     setCurrency("");
-    setDueDate(undefined);
     setIsGenerating(false);
   };
 
@@ -145,37 +133,10 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Due Date</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !dueDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dueDate ? format(dueDate, "PPP") : "Select due date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={dueDate}
-                onSelect={setDueDate}
-                disabled={(date) => date < new Date()}
-                initialFocus
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
 
         <Button
           onClick={generateInvoice}
-          disabled={!description || !amount || !currency || !dueDate || isGenerating}
+          disabled={!description || !amount || !currency || isGenerating}
           variant="web3"
           className="w-full h-12 text-base font-semibold"
         >
