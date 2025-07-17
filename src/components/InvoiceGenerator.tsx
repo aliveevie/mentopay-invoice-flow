@@ -27,6 +27,7 @@ interface InvoiceData {
   totalAmount: string;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
+  network: "mainnet" | "alfajores";
 }
 
 interface InvoiceGeneratorProps {
@@ -41,6 +42,11 @@ const CURRENCIES = [
   { value: "cGHS", label: "cGHS", description: "Celo Ghanaian Cedi" },
 ];
 
+const NETWORKS = [
+  { value: "mainnet", label: "Celo Mainnet" },
+  { value: "alfajores", label: "Celo Alfajores Testnet" },
+];
+
 const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
   const [items, setItems] = useState<InvoiceItem[]>([
     { id: "1", description: "", amount: "" }
@@ -48,6 +54,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
   const [currency, setCurrency] = useState("");
   const [invoiceCounter, setInvoiceCounter] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [network, setNetwork] = useState("mainnet");
 
   const addItem = () => {
     const newItem: InvoiceItem = {
@@ -93,6 +100,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
       totalAmount: calculateTotal(),
       createdAt: new Date(),
       status: "pending",
+      network, // add network to invoice
     };
 
     saveInvoiceToStorage(invoice);
@@ -207,6 +215,23 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
                         {curr.description}
                       </span>
                     </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="network" className="text-sm font-medium">
+              Network
+            </Label>
+            <Select value={network} onValueChange={setNetwork}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select network" />
+              </SelectTrigger>
+              <SelectContent>
+                {NETWORKS.map((net) => (
+                  <SelectItem key={net.value} value={net.value}>
+                    {net.label}
                   </SelectItem>
                 ))}
               </SelectContent>

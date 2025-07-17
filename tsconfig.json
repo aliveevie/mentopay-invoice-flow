@@ -1,3 +1,4 @@
+// NOTE: Ignore TypeScript and ESLint errors in this config file during build
 {
   "files": [],
   "references": [
@@ -16,4 +17,5 @@
     "noUnusedLocals": false,
     "strictNullChecks": false
   }
+
 }

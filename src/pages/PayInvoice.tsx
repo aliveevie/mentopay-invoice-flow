@@ -29,6 +29,9 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { getInvoiceFromStorage, saveInvoiceToStorage } from "@/lib/utils";
+import WalletConnect from "@/components/WalletConnect";
+import { useAccount } from "wagmi";
+import { createPublicClient, http, formatUnits } from "viem";
 
 interface InvoiceItem {
   id: string;
@@ -44,6 +47,7 @@ interface InvoiceData {
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   txHash?: string;
+  network?: "mainnet" | "alfajores";
 }
 
 const CURRENCIES = [
@@ -51,6 +55,58 @@ const CURRENCIES = [
   { value: "cEUR", label: "cEUR", description: "Celo Euro" },
   { value: "cREAL", label: "cREAL", description: "Celo Real" },
 ];
+
+const TOKEN_ADDRESSES: Record<string, { mainnet: string; alfajores: string }> = {
+  cUSD: {
+    mainnet: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+    alfajores: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+  },
+  cEUR: {
+    mainnet: "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73",
+    alfajores: "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F",
+  },
+  cREAL: {
+    mainnet: "0xE4D517785D091D3c54818832dB6094bcc2744545",
+    alfajores: "0xE4D517785D091D3c54818832dB6094bcc2744545", // same as mainnet
+  },
+  cNGN: {
+    mainnet: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", // placeholder
+    alfajores: "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0", // placeholder
+  },
+  cGHS: {
+    mainnet: "0x3A0c0B9aB6bC4b6bA2e6eB1e6eB1e6eB1e6eB1e6", // placeholder
+    alfajores: "0x3A0c0B9aB6bC4b6bA2e6eB1e6eB1e6eB1e6eB1e6", // placeholder
+  },
+};
+
+const CHAIN_IDS = { mainnet: 42220, alfajores: 44787 };
+
+const RPC_URLS = {
+  mainnet: "https://forno.celo.org",
+  alfajores: "https://alfajores-forno.celo-testnet.org",
+};
+
+const ERC20_ABI = [
+  {
+    constant: true,
+    inputs: [{ name: "_owner", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ name: "balance", type: "uint256" }],
+    type: "function",
+  },
+  {
+    constant: true,
+    inputs: [],
+    name: "decimals",
+    outputs: [{ name: "", type: "uint8" }],
+    type: "function",
+  },
+];
+
+const BLOCKSCOUT_API = {
+  mainnet: "https://explorer.celo.org/api",
+  alfajores: "https://alfajores-blockscout.celo-testnet.org/api",
+};
 
 const PayInvoice = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -63,6 +119,12 @@ const PayInvoice = () => {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [txHash, setTxHash] = useState("");
 
+  const { address, isConnected } = useAccount();
+  const network = invoice?.network || "mainnet";
+  const tokenAddress = invoice ? TOKEN_ADDRESSES[invoice.currency]?.[network] : undefined;
+  const chainId = CHAIN_IDS[network];
+  const [allTokenBalances, setAllTokenBalances] = useState([]);
+
   useEffect(() => {
     if (invoiceId) {
       const invoiceData = getInvoiceFromStorage(invoiceId);
@@ -72,6 +134,29 @@ const PayInvoice = () => {
       }
     }
   }, [invoiceId]);
+
+  useEffect(() => {
+    const fetchAllTokenBalances = async () => {
+      if (!address) {
+        setAllTokenBalances([]);
+        return;
+      }
+      try {
+        const apiUrl = `${BLOCKSCOUT_API[network]}`;
+        const url = `${apiUrl}?module=account&action=tokenlist&address=${address}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (data.status === "1" && Array.isArray(data.result)) {
+          setAllTokenBalances(data.result);
+        } else {
+          setAllTokenBalances([]);
+        }
+      } catch (e) {
+        setAllTokenBalances([]);
+      }
+    };
+    fetchAllTokenBalances();
+  }, [address, network]);
 
   const getStatusConfig = () => {
     if (!invoice) return { icon: Clock, color: "bg-primary", text: "Pending", variant: "secondary" as const };
@@ -155,19 +240,10 @@ const PayInvoice = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
-      {/* Header */}
-      <header className="border-b border-primary/10 bg-card/50 backdrop-blur-sm">
+      {/* Header (match Index.tsx) */}
+      <header className="border-b border-primary/10 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate("/")}
-              className="gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-primary rounded-lg">
                 <Receipt className="w-6 h-6 text-white" />
@@ -181,10 +257,10 @@ const PayInvoice = () => {
                 </p>
               </div>
             </div>
+            <WalletConnect />
           </div>
         </div>
       </header>
-
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
         <div className="w-full max-w-2xl mx-auto">
@@ -208,7 +284,6 @@ const PayInvoice = () => {
                 </Badge>
               </div>
             </CardHeader>
-
             <CardContent className="p-6 space-y-6">
               <div className="space-y-4">
                 <div>
@@ -235,16 +310,19 @@ const PayInvoice = () => {
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
                     Total Amount
                   </h3>
-                  <p className="text-2xl font-bold font-mono">
-                    {invoice.totalAmount} {invoice.currency}
-                  </p>
+                  <div className="flex items-center gap-4">
+                    <p className="text-2xl font-bold font-mono">
+                      {invoice.totalAmount} {invoice.currency}
+                    </p>
+                    <span className="text-sm text-muted-foreground">
+                      Balance: {allTokenBalances.find(token => token.contractAddress === tokenAddress)?.balance || "0"} {invoice.currency}
+                    </span>
+                  </div>
                 </div>
-
                 {invoice.txHash && (
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">
@@ -256,50 +334,32 @@ const PayInvoice = () => {
                   </div>
                 )}
               </div>
-
               {invoice.status === "pending" && (
                 <div className="space-y-4 pt-4 border-t">
-                  <div>
-                    <Label className="text-sm font-medium mb-2 block">
-                      Payment Token
-                    </Label>
-                    <Select value={paymentToken} onValueChange={setPaymentToken}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CURRENCIES.map((curr) => (
-                          <SelectItem key={curr.value} value={curr.value}>
-                            <div className="flex flex-col items-start">
-                              <span className="font-medium">{curr.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {curr.description}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button
-                    onClick={handlePayment}
-                    disabled={isPaymentPending}
-                    variant="success"
-                    className="w-full h-12 text-base font-semibold"
-                  >
-                    {isPaymentPending ? (
-                      <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        Processing Payment...
-                      </div>
-                    ) : (
-                      `Pay ${invoice.totalAmount} ${paymentToken}`
-                    )}
-                  </Button>
+                  {!isConnected && (
+                    <div className="p-3 bg-muted rounded text-center text-sm text-muted-foreground">
+                      Please connect your wallet to pay this invoice.
+                    </div>
+                  )}
+                  {isConnected && (
+                    <Button
+                      onClick={handlePayment}
+                      disabled={isPaymentPending}
+                      variant="success"
+                      className="w-full h-12 text-base font-semibold"
+                    >
+                      {isPaymentPending ? (
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          Processing Payment...
+                        </div>
+                      ) : (
+                        `Pay ${invoice.totalAmount} ${invoice.currency}`
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
-
               {invoice.status === "paid" && (
                 <div className="p-4 bg-web3-success/10 rounded-lg border border-web3-success/20">
                   <div className="flex items-center gap-2 text-web3-success">
@@ -308,11 +368,21 @@ const PayInvoice = () => {
                   </div>
                 </div>
               )}
+              <div className="flex flex-col gap-2 mt-4">
+                <h4 className="text-sm font-semibold">Your Tokens on {network === "mainnet" ? "Celo Mainnet" : "Alfajores"}:</h4>
+                {allTokenBalances.length === 0 && <span className="text-xs text-muted-foreground">No tokens found or not connected.</span>}
+                {allTokenBalances.map(token => (
+                  <div key={token.contractAddress} className="flex items-center gap-2 text-xs">
+                    <span className="font-mono">{token.tokenSymbol}</span>
+                    <span>{parseFloat(token.balance) / 10 ** Number(token.tokenDecimal)}</span>
+                    <span className="text-muted-foreground">({token.contractAddress})</span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
       </main>
-
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md">
