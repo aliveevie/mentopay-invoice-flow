@@ -28,6 +28,7 @@ interface InvoiceData {
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   network: "mainnet" | "alfajores";
+  recipientAddress: string;
 }
 
 interface InvoiceGeneratorProps {
@@ -54,7 +55,8 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
   const [currency, setCurrency] = useState("");
   const [invoiceCounter, setInvoiceCounter] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [network, setNetwork] = useState("mainnet");
+  const [network, setNetwork] = useState<"mainnet" | "alfajores">("mainnet");
+  const [recipientAddress, setRecipientAddress] = useState("");
 
   const addItem = () => {
     const newItem: InvoiceItem = {
@@ -86,7 +88,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
 
   const generateInvoice = async () => {
     const validItems = items.filter(item => item.description && item.amount);
-    if (validItems.length === 0 || !currency) return;
+    if (validItems.length === 0 || !currency || !recipientAddress) return;
 
     setIsGenerating(true);
     
@@ -101,6 +103,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
       createdAt: new Date(),
       status: "pending",
       network, // add network to invoice
+      recipientAddress, // add recipient address to invoice
     };
 
     saveInvoiceToStorage(invoice);
@@ -110,6 +113,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
     // Reset form
     setItems([{ id: "1", description: "", amount: "" }]);
     setCurrency("");
+    setRecipientAddress("");
     setIsGenerating(false);
   };
 
@@ -238,7 +242,24 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="md:col-span-2 space-y-2">
+            <Label htmlFor="recipientAddress" className="text-sm font-medium">
+              Recipient Wallet Address
+            </Label>
+            <Input
+              id="recipientAddress"
+              type="text"
+              placeholder="0x..."
+              value={recipientAddress}
+              onChange={(e) => setRecipientAddress(e.target.value)}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter the wallet address that will receive the payment
+            </p>
+          </div>
+
+          <div className="md:col-span-2 space-y-2">
             <Label className="text-sm font-medium">Total Amount</Label>
             <div className="text-2xl font-bold font-mono p-3 bg-muted rounded-md">
               {calculateTotal()} {currency || "---"}
@@ -248,7 +269,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
 
         <Button
           onClick={generateInvoice}
-          disabled={items.every(item => !item.description || !item.amount) || !currency || isGenerating}
+          disabled={items.every(item => !item.description || !item.amount) || !currency || !recipientAddress || isGenerating}
           variant="web3"
           className="w-full h-12 text-base font-semibold"
         >

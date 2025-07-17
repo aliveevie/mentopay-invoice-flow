@@ -50,6 +50,7 @@ interface InvoiceData {
   status: "pending" | "paid" | "overdue";
   txHash?: string;
   network?: "mainnet" | "alfajores";
+  recipientAddress: string;
 }
 
 const CURRENCIES = [
@@ -325,6 +326,14 @@ const PayInvoice = () => {
                       Balance: {balanceLoading ? "..." : tokenBalance} {invoice.currency}
                     </span>
                   </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                    Recipient Address
+                  </h3>
+                  <code className="px-3 py-2 bg-muted rounded text-sm font-mono block break-all">
+                    {invoice.recipientAddress}
+                  </code>
                 </div>
                 {invoice.txHash && (
                   <div>
