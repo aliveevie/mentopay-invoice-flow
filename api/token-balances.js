@@ -1,11 +1,11 @@
-// Vercel serverless function to proxy token balance requests to Celo explorer/blockscout
+// Vercel serverless function to get Mento stable token balances using @mento-protocol/mento-sdk
+import { MentoSdk, Network } from '@mento-protocol/mento-sdk';
+
 export default async function handler(req, res) {
-  // Set CORS headers for all responses
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // Handle preflight OPTIONS request
   if (req.method === "OPTIONS") {
     res.status(200).end();
     return;
@@ -16,15 +16,23 @@ export default async function handler(req, res) {
     res.status(400).json({ error: "Missing address parameter" });
     return;
   }
-  const API_URLS = {
-    mainnet: "https://explorer.celo.org/api?module=account&action=tokenlist&address=",
-    alfajores: "https://alfajores-blockscout.celo-testnet.org/api?module=account&action=tokenlist&address=",
-  };
-  const apiUrl = API_URLS[network] + address;
+
   try {
-    const fetchRes = await fetch(apiUrl);
-    const data = await fetchRes.json();
-    res.status(200).json(data);
+    const sdkNetwork = network === "mainnet" ? Network.MAINNET : Network.ALFAJORES;
+    const sdk = new MentoSdk({ network: sdkNetwork });
+    await sdk.init();
+    const tokens = await sdk.tokens.getAllTokens();
+    const balances = {};
+    for (const token of tokens) {
+      const bal = await sdk.tokens.balanceOf(token.address, address);
+      balances[token.symbol] = {
+        symbol: token.symbol,
+        address: token.address,
+        balance: bal.toString(),
+        decimals: token.decimals,
+      };
+    }
+    res.status(200).json({ address, network, balances });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch token balances", details: err.message });
   }

@@ -32,6 +32,8 @@ import { getInvoiceFromStorage, saveInvoiceToStorage } from "@/lib/utils";
 import WalletConnect from "@/components/WalletConnect";
 import { useAccount } from "wagmi";
 import { createPublicClient, http, formatUnits } from "viem";
+import { ethers } from "ethers";
+
 
 interface InvoiceItem {
   id: string;
@@ -87,21 +89,47 @@ const RPC_URLS = {
 };
 
 const ERC20_ABI = [
-  {
-    constant: true,
-    inputs: [{ name: "_owner", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ name: "balance", type: "uint256" }],
-    type: "function",
-  },
-  {
-    constant: true,
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    type: "function",
-  },
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)"
 ];
+
+function useTokenBalance(tokenSymbol, network, address) {
+  const [balance, setBalance] = useState("0");
+  const [decimals, setDecimals] = useState(18);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!address || !tokenSymbol) {
+      setBalance("0");
+      return;
+    }
+    const fetchBalance = async () => {
+      setLoading(true);
+      try {
+        const tokenAddress = TOKEN_ADDRESSES[tokenSymbol][network];
+        const provider = new ethers.providers.JsonRpcProvider(
+          network === "mainnet"
+            ? "https://forno.celo.org"
+            : "https://alfajores-forno.celo-testnet.org"
+        );
+        const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+        const [bal, dec] = await Promise.all([
+          contract.balanceOf(address),
+          contract.decimals()
+        ]);
+        setDecimals(dec);
+        setBalance(ethers.utils.formatUnits(bal, dec));
+      } catch (e) {
+        setBalance("0");
+      }
+      setLoading(false);
+    };
+    fetchBalance();
+  }, [tokenSymbol, network, address]);
+
+  return { balance, decimals, loading };
+}
 
 const BLOCKSCOUT_API = {
   mainnet: "https://explorer.celo.org/api",
@@ -121,9 +149,7 @@ const PayInvoice = () => {
 
   const { address, isConnected } = useAccount();
   const network = invoice?.network || "mainnet";
-  const tokenAddress = invoice ? TOKEN_ADDRESSES[invoice.currency]?.[network] : undefined;
-  const chainId = CHAIN_IDS[network];
-  const [allTokenBalances, setAllTokenBalances] = useState([]);
+  const { balance: tokenBalance, decimals: tokenDecimals, loading: balanceLoading } = useTokenBalance(invoice?.currency, network, address);
 
   useEffect(() => {
     if (invoiceId) {
@@ -134,29 +160,6 @@ const PayInvoice = () => {
       }
     }
   }, [invoiceId]);
-
-  useEffect(() => {
-    const fetchAllTokenBalances = async () => {
-      if (!address) {
-        setAllTokenBalances([]);
-        return;
-      }
-      try {
-        const apiUrl = `${BLOCKSCOUT_API[network]}`;
-        const url = `${apiUrl}?module=account&action=tokenlist&address=${address}`;
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (data.status === "1" && Array.isArray(data.result)) {
-          setAllTokenBalances(data.result);
-        } else {
-          setAllTokenBalances([]);
-        }
-      } catch (e) {
-        setAllTokenBalances([]);
-      }
-    };
-    fetchAllTokenBalances();
-  }, [address, network]);
 
   const getStatusConfig = () => {
     if (!invoice) return { icon: Clock, color: "bg-primary", text: "Pending", variant: "secondary" as const };
@@ -319,7 +322,7 @@ const PayInvoice = () => {
                       {invoice.totalAmount} {invoice.currency}
                     </p>
                     <span className="text-sm text-muted-foreground">
-                      Balance: {allTokenBalances.find(token => token.contractAddress === tokenAddress)?.balance || "0"} {invoice.currency}
+                      Balance: {balanceLoading ? "..." : tokenBalance} {invoice.currency}
                     </span>
                   </div>
                 </div>
@@ -368,17 +371,6 @@ const PayInvoice = () => {
                   </div>
                 </div>
               )}
-              <div className="flex flex-col gap-2 mt-4">
-                <h4 className="text-sm font-semibold">Your Tokens on {network === "mainnet" ? "Celo Mainnet" : "Alfajores"}:</h4>
-                {allTokenBalances.length === 0 && <span className="text-xs text-muted-foreground">No tokens found or not connected.</span>}
-                {allTokenBalances.map(token => (
-                  <div key={token.contractAddress} className="flex items-center gap-2 text-xs">
-                    <span className="font-mono">{token.tokenSymbol}</span>
-                    <span>{parseFloat(token.balance) / 10 ** Number(token.tokenDecimal)}</span>
-                    <span className="text-muted-foreground">({token.contractAddress})</span>
-                  </div>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -405,6 +397,7 @@ const PayInvoice = () => {
             <Button 
               onClick={() => setShowSuccessDialog(false)} 
               variant="outline"
+              className="gap-2"
             >
               Close
             </Button>
