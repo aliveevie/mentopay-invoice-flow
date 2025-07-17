@@ -25,11 +25,17 @@ import {
 import { format } from "date-fns";
 import QRCode from "qrcode";
 
-interface InvoiceData {
+interface InvoiceItem {
   id: string;
   description: string;
   amount: string;
+}
+
+interface InvoiceData {
+  id: string;
+  items: InvoiceItem[];
   currency: string;
+  totalAmount: string;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   txHash?: string;
@@ -112,7 +118,7 @@ const InvoiceDisplay = ({ invoice, onPayment }: InvoiceDisplayProps) => {
       try {
         await navigator.share({
           title: `Invoice ${invoice.id}`,
-          text: `Payment request for ${invoice.amount} ${invoice.currency}`,
+          text: `Payment request for ${invoice.totalAmount} ${invoice.currency}`,
           url: invoiceUrl,
         });
       } catch (error) {
@@ -168,20 +174,38 @@ const InvoiceDisplay = ({ invoice, onPayment }: InvoiceDisplayProps) => {
         <CardContent className="p-6 space-y-6">
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                Description
+              <h3 className="text-sm font-medium text-muted-foreground mb-4">
+                Invoice Items
               </h3>
-              <p className="text-foreground">{invoice.description}</p>
+              <div className="space-y-3">
+                {invoice.items.map((item, index) => (
+                  <div key={item.id} className="flex justify-between items-start p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          #{index + 1}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground">{item.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono font-semibold">
+                        {parseFloat(item.amount).toFixed(2)} {invoice.currency}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <Separator />
 
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                Amount
+                Total Amount
               </h3>
               <p className="text-2xl font-bold font-mono">
-                {invoice.amount} {invoice.currency}
+                {invoice.totalAmount} {invoice.currency}
               </p>
             </div>
 

@@ -29,11 +29,17 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-interface InvoiceData {
+interface InvoiceItem {
   id: string;
   description: string;
   amount: string;
+}
+
+interface InvoiceData {
+  id: string;
+  items: InvoiceItem[];
   currency: string;
+  totalAmount: string;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   txHash?: string;
@@ -49,9 +55,12 @@ const CURRENCIES = [
 export const MOCK_INVOICES: Record<string, InvoiceData> = {
   "INV-001": {
     id: "INV-001",
-    description: "Web development services for Q4 2024",
-    amount: "1500.00",
+    items: [
+      { id: "1", description: "Web development services for Q4 2024", amount: "1200.00" },
+      { id: "2", description: "UI/UX Design consultation", amount: "300.00" }
+    ],
     currency: "cUSD",
+    totalAmount: "1500.00",
     createdAt: new Date(),
     status: "pending"
   }
@@ -214,18 +223,36 @@ const PayInvoice = () => {
             <CardContent className="p-6 space-y-6">
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2">
-                    Payment Description
+                  <h3 className="text-sm font-medium text-muted-foreground mb-4">
+                    Invoice Items
                   </h3>
-                  <p className="text-foreground">{invoice.description}</p>
+                  <div className="space-y-3">
+                    {invoice.items.map((item, index) => (
+                      <div key={item.id} className="flex justify-between items-start p-3 bg-muted/50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              #{index + 1}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground">{item.description}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono font-semibold">
+                            {parseFloat(item.amount).toFixed(2)} {invoice.currency}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">
-                    Amount
+                    Total Amount
                   </h3>
                   <p className="text-2xl font-bold font-mono">
-                    {invoice.amount} {invoice.currency}
+                    {invoice.totalAmount} {invoice.currency}
                   </p>
                 </div>
 
@@ -278,7 +305,7 @@ const PayInvoice = () => {
                         Processing Payment...
                       </div>
                     ) : (
-                      `Pay ${invoice.amount} ${paymentToken}`
+                      `Pay ${invoice.totalAmount} ${paymentToken}`
                     )}
                   </Button>
                 </div>

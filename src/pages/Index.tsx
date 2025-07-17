@@ -7,11 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Receipt, TrendingUp, Clock, CheckCircle } from "lucide-react";
 
-interface InvoiceData {
+interface InvoiceItem {
   id: string;
   description: string;
   amount: string;
+}
+
+interface InvoiceData {
+  id: string;
+  items: InvoiceItem[];
   currency: string;
+  totalAmount: string;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
   txHash?: string;
@@ -49,7 +55,7 @@ const Index = () => {
     pending: invoiceHistory.filter(inv => inv.status === "pending").length,
     totalAmount: invoiceHistory
       .filter(inv => inv.status === "paid")
-      .reduce((sum, inv) => sum + parseFloat(inv.amount), 0)
+      .reduce((sum, inv) => sum + parseFloat(inv.totalAmount), 0)
   };
 
   return (
@@ -192,13 +198,13 @@ const Index = () => {
                           <div>
                             <h3 className="font-semibold">{invoice.id}</h3>
                             <p className="text-sm text-muted-foreground">
-                              {invoice.description}
+                              {invoice.items.length} item{invoice.items.length !== 1 ? 's' : ''}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
                           <p className="font-bold font-mono">
-                            {invoice.amount} {invoice.currency}
+                            {invoice.totalAmount} {invoice.currency}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             {invoice.status === "paid" && (

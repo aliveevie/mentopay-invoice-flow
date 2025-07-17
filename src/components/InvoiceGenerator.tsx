@@ -11,13 +11,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Receipt, QrCode } from "lucide-react";
+import { Receipt, QrCode, Plus, Trash2 } from "lucide-react";
 
-interface InvoiceData {
+interface InvoiceItem {
   id: string;
   description: string;
   amount: string;
+}
+
+interface InvoiceData {
+  id: string;
+  items: InvoiceItem[];
   currency: string;
+  totalAmount: string;
   createdAt: Date;
   status: "pending" | "paid" | "overdue";
 }
@@ -33,14 +39,44 @@ const CURRENCIES = [
 ];
 
 const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
+  const [items, setItems] = useState<InvoiceItem[]>([
+    { id: "1", description: "", amount: "" }
+  ]);
   const [currency, setCurrency] = useState("");
   const [invoiceCounter, setInvoiceCounter] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const addItem = () => {
+    const newItem: InvoiceItem = {
+      id: (items.length + 1).toString(),
+      description: "",
+      amount: ""
+    };
+    setItems([...items, newItem]);
+  };
+
+  const removeItem = (id: string) => {
+    if (items.length > 1) {
+      setItems(items.filter(item => item.id !== id));
+    }
+  };
+
+  const updateItem = (id: string, field: keyof InvoiceItem, value: string) => {
+    setItems(items.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const calculateTotal = () => {
+    return items.reduce((total, item) => {
+      const amount = parseFloat(item.amount) || 0;
+      return total + amount;
+    }, 0).toFixed(2);
+  };
+
   const generateInvoice = async () => {
-    if (!description || !amount || !currency) return;
+    const validItems = items.filter(item => item.description && item.amount);
+    if (validItems.length === 0 || !currency) return;
 
     setIsGenerating(true);
     
@@ -49,9 +85,9 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
 
     const invoice: InvoiceData = {
       id: `INV-${invoiceCounter.toString().padStart(3, '0')}`,
-      description,
-      amount,
+      items: validItems,
       currency,
+      totalAmount: calculateTotal(),
       createdAt: new Date(),
       status: "pending",
     };
@@ -60,8 +96,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
     setInvoiceCounter(prev => prev + 1);
     
     // Reset form
-    setDescription("");
-    setAmount("");
+    setItems([{ id: "1", description: "", amount: "" }]);
     setCurrency("");
     setIsGenerating(false);
   };
@@ -81,34 +116,76 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
       </CardHeader>
       
       <CardContent className="p-6 space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="description" className="text-sm font-medium">
-            Payment Description
-          </Label>
-          <Textarea
-            id="description"
-            placeholder="Describe what this payment is for..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="min-h-[80px] resize-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-sm font-medium">
-              Amount
-            </Label>
-            <Input
-              id="amount"
-              type="number"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="text-lg font-mono"
-            />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-lg font-medium">Invoice Items</Label>
+            <Button 
+              type="button" 
+              onClick={addItem} 
+              variant="outline" 
+              size="sm"
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Item
+            </Button>
           </div>
 
+          {items.map((item, index) => (
+            <Card key={item.id} className="border border-muted">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Item #{index + 1}
+                  </span>
+                  {items.length > 1 && (
+                    <Button
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor={`description-${item.id}`} className="text-sm font-medium">
+                      Description
+                    </Label>
+                    <Textarea
+                      id={`description-${item.id}`}
+                      placeholder="Describe this item..."
+                      value={item.description}
+                      onChange={(e) => updateItem(item.id, "description", e.target.value)}
+                      className="min-h-[80px] resize-none"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`amount-${item.id}`} className="text-sm font-medium">
+                      Amount
+                    </Label>
+                    <Input
+                      id={`amount-${item.id}`}
+                      type="number"
+                      placeholder="0.00"
+                      value={item.amount}
+                      onChange={(e) => updateItem(item.id, "amount", e.target.value)}
+                      className="text-lg font-mono"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="currency" className="text-sm font-medium">
               Currency
@@ -131,12 +208,18 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
               </SelectContent>
             </Select>
           </div>
-        </div>
 
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Total Amount</Label>
+            <div className="text-2xl font-bold font-mono p-3 bg-muted rounded-md">
+              {calculateTotal()} {currency || "---"}
+            </div>
+          </div>
+        </div>
 
         <Button
           onClick={generateInvoice}
-          disabled={!description || !amount || !currency || isGenerating}
+          disabled={items.every(item => !item.description || !item.amount) || !currency || isGenerating}
           variant="web3"
           className="w-full h-12 text-base font-semibold"
         >
