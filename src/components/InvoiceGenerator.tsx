@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Receipt, QrCode, Plus, Trash2 } from "lucide-react";
+import { saveInvoiceToStorage } from "@/lib/utils";
 
 interface InvoiceItem {
   id: string;
@@ -92,6 +93,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
       status: "pending",
     };
 
+    saveInvoiceToStorage(invoice);
     onInvoiceGenerated(invoice);
     setInvoiceCounter(prev => prev + 1);
     

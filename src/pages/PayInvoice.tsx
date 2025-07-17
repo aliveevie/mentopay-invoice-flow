@@ -28,6 +28,7 @@ import {
   Plus
 } from "lucide-react";
 import { format } from "date-fns";
+import { getInvoiceFromStorage, saveInvoiceToStorage } from "@/lib/utils";
 
 interface InvoiceItem {
   id: string;
@@ -51,21 +52,6 @@ const CURRENCIES = [
   { value: "cREAL", label: "cREAL", description: "Celo Real" },
 ];
 
-// Mock invoice data - In real app, this would come from a database
-export const MOCK_INVOICES: Record<string, InvoiceData> = {
-  "INV-001": {
-    id: "INV-001",
-    items: [
-      { id: "1", description: "Web development services for Q4 2024", amount: "1200.00" },
-      { id: "2", description: "UI/UX Design consultation", amount: "300.00" }
-    ],
-    currency: "cUSD",
-    totalAmount: "1500.00",
-    createdAt: new Date(),
-    status: "pending"
-  }
-};
-
 const PayInvoice = () => {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
@@ -78,10 +64,12 @@ const PayInvoice = () => {
   const [txHash, setTxHash] = useState("");
 
   useEffect(() => {
-    if (invoiceId && MOCK_INVOICES[invoiceId]) {
-      const invoiceData = MOCK_INVOICES[invoiceId];
-      setInvoice(invoiceData);
-      setPaymentToken(invoiceData.currency);
+    if (invoiceId) {
+      const invoiceData = getInvoiceFromStorage(invoiceId);
+      if (invoiceData) {
+        setInvoice(invoiceData);
+        setPaymentToken(invoiceData.currency);
+      }
     }
   }, [invoiceId]);
 
@@ -129,7 +117,8 @@ const PayInvoice = () => {
         txHash: mockTxHash 
       };
       setInvoice(updatedInvoice);
-      MOCK_INVOICES[invoice.id] = updatedInvoice;
+      // Save updated invoice to storage
+      saveInvoiceToStorage(updatedInvoice);
     }
     
     setIsPaymentPending(false);

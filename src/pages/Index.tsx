@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import WalletConnect from "@/components/WalletConnect";
 import InvoiceGenerator from "@/components/InvoiceGenerator";
 import InvoiceDisplay from "@/components/InvoiceDisplay";
-import { MOCK_INVOICES } from "@/pages/PayInvoice";
+import { getInvoicesFromStorage, saveInvoiceToStorage } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Receipt, TrendingUp, Clock, CheckCircle } from "lucide-react";
@@ -27,11 +27,32 @@ const Index = () => {
   const [currentInvoice, setCurrentInvoice] = useState<InvoiceData | null>(null);
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceData[]>([]);
 
+  useEffect(() => {
+    // Load invoice history from localStorage on mount
+    const invoicesObj = getInvoicesFromStorage();
+    const invoicesArr = Object.values(invoicesObj);
+    // Sort by createdAt descending
+    invoicesArr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setInvoiceHistory(invoicesArr);
+    if (invoicesArr.length > 0) {
+      setCurrentInvoice(invoicesArr[0]);
+    }
+  }, []);
+
+  // Helper to reload invoices from storage
+  const reloadInvoices = () => {
+    const invoicesObj = getInvoicesFromStorage();
+    const invoicesArr = Object.values(invoicesObj);
+    invoicesArr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setInvoiceHistory(invoicesArr);
+    if (invoicesArr.length > 0) {
+      setCurrentInvoice(invoicesArr[0]);
+    }
+  };
+
   const handleInvoiceGenerated = (invoice: InvoiceData) => {
-    // Store invoice in shared mock data so share links work
-    MOCK_INVOICES[invoice.id] = invoice;
-    setCurrentInvoice(invoice);
-    setInvoiceHistory(prev => [invoice, ...prev]);
+    saveInvoiceToStorage(invoice);
+    reloadInvoices();
     // Auto-switch to invoice tab to show sharing options
     const tabsTrigger = document.querySelector('[value="invoice"]') as HTMLButtonElement;
     if (tabsTrigger) {
@@ -42,12 +63,27 @@ const Index = () => {
   const handlePayment = (txHash: string) => {
     if (currentInvoice) {
       const updatedInvoice = { ...currentInvoice, status: "paid" as const, txHash };
-      setCurrentInvoice(updatedInvoice);
-      setInvoiceHistory(prev => 
-        prev.map(inv => inv.id === currentInvoice.id ? updatedInvoice : inv)
-      );
+      saveInvoiceToStorage(updatedInvoice);
+      reloadInvoices();
     }
   };
+
+  // Listen for tab changes to reload invoices
+  useEffect(() => {
+    const tabList = document.querySelector('[role="tablist"]');
+    if (!tabList) return;
+    const handler = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.getAttribute('role') === 'tab') {
+        const value = target.getAttribute('data-state') === 'active' ? target.textContent?.toLowerCase() : '';
+        if (value === 'invoice' || value === 'history') {
+          reloadInvoices();
+        }
+      }
+    };
+    tabList.addEventListener('click', handler);
+    return () => tabList.removeEventListener('click', handler);
+  }, []);
 
   const stats = {
     total: invoiceHistory.length,
