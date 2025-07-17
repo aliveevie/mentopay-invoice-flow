@@ -34,9 +34,11 @@ interface InvoiceGeneratorProps {
 }
 
 const CURRENCIES = [
-  { value: "cUSD", label: "cUSD", description: "Celo Dollar" },
-  { value: "cEUR", label: "cEUR", description: "Celo Euro" },
-  { value: "cREAL", label: "cREAL", description: "Celo Real" },
+  { value: "cUSD", label: "cUSD", description: "Celo Dollar (US Dollar)" },
+  { value: "cEUR", label: "cEUR", description: "Celo Euro (Euro)" },
+  { value: "cREAL", label: "cREAL", description: "Celo Real (Brazilian Real)" },
+  { value: "cNGN", label: "cNGN", description: "Celo Naira (Nigerian Naira)" },
+  { value: "cGHS", label: "cGHS", description: "Celo Ghanaian Cedi" },
 ];
 
 const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
