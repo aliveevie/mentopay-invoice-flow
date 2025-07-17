@@ -34,6 +34,12 @@ import { useAccount } from "wagmi";
 import { createPublicClient, http, formatUnits } from "viem";
 import { ethers } from "ethers";
 
+// Type declaration for window.ethereum
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
 interface InvoiceItem {
   id: string;
@@ -70,15 +76,15 @@ const TOKEN_ADDRESSES: Record<string, { mainnet: string; alfajores: string }> = 
   },
   cREAL: {
     mainnet: "0xE4D517785D091D3c54818832dB6094bcc2744545",
-    alfajores: "0xE4D517785D091D3c54818832dB6094bcc2744545", // same as mainnet
+    alfajores: "0xE4D517785D091D3c54818832dB6094bcc2744545",
   },
   cNGN: {
-    mainnet: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3", // placeholder
-    alfajores: "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0", // placeholder
+    mainnet: "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3",
+    alfajores: "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0",
   },
   cGHS: {
-    mainnet: "0x3A0c0B9aB6bC4b6bA2e6eB1e6eB1e6eB1e6eB1e6", // placeholder
-    alfajores: "0x3A0c0B9aB6bC4b6bA2e6eB1e6eB1e6eB1e6eB1e6", // placeholder
+    mainnet: "0x3A0c0B9aB6bC4b6bA2e6eB1e6eB1e6eB1e6eB1e6",
+    alfajores: "0x3A0c0B9aB6bC4b6bA2e6eB1e6eB1e6eB1e6eB1e6",
   },
 };
 
@@ -89,10 +95,22 @@ const RPC_URLS = {
   alfajores: "https://alfajores-forno.celo-testnet.org",
 };
 
+const EXPLORER_URLS = {
+  mainnet: "https://explorer.celo.org",
+  alfajores: "https://alfajores-blockscout.celo-testnet.org",
+};
+
+const getExplorerUrl = (network: "mainnet" | "alfajores", txHash: string) => {
+  return `${EXPLORER_URLS[network]}/tx/${txHash}`;
+};
+
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",
-  "function symbol() view returns (string)"
+  "function symbol() view returns (string)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
 function useTokenBalance(tokenSymbol, network, address) {
@@ -147,6 +165,7 @@ const PayInvoice = () => {
   const [isPaymentPending, setIsPaymentPending] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [txHash, setTxHash] = useState("");
+  const [processingTx, setProcessingTx] = useState("");
 
   const { address, isConnected } = useAccount();
   const network = invoice?.network || "mainnet";
@@ -158,6 +177,9 @@ const PayInvoice = () => {
       if (invoiceData) {
         setInvoice(invoiceData);
         setPaymentToken(invoiceData.currency);
+        if (invoiceData.txHash) {
+          setTxHash(invoiceData.txHash);
+        }
       }
     }
   }, [invoiceId]);
@@ -191,27 +213,176 @@ const PayInvoice = () => {
   };
 
   const handlePayment = async () => {
+    if (!invoice || !address) {
+      console.log("❌ Payment failed: Missing invoice or address", { invoice: !!invoice, address: !!address });
+      return;
+    }
+    
+    console.log("🚀 Starting payment process...", {
+      invoiceId: invoice.id,
+      amount: invoice.totalAmount,
+      currency: invoice.currency,
+      recipient: invoice.recipientAddress,
+      payer: address,
+      network
+    });
+    
     setIsPaymentPending(true);
     
-    // Simulate payment process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const mockTxHash = `0x${Math.random().toString(16).substr(2, 8)}...${Math.random().toString(16).substr(2, 8)}`;
-    setTxHash(mockTxHash);
-    
-    if (invoice) {
+    try {
+      console.log("📡 Connecting to wallet...");
+      
+      // Check if ethereum is available
+      if (!window.ethereum) {
+        throw new Error("No Ethereum provider found. Please install MetaMask or another wallet.");
+      }
+      
+      // Get the provider and signer
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      console.log("✅ Provider created:", provider);
+      
+      // Check current network
+      const currentNetwork = await provider.getNetwork();
+      console.log("🌐 Current network:", currentNetwork);
+      
+      const expectedChainId = CHAIN_IDS[network];
+      console.log("🎯 Expected chain ID:", expectedChainId);
+      
+      if (currentNetwork.chainId !== expectedChainId) {
+        console.log("⚠️ Wrong network detected. Requesting network switch...");
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: `0x${expectedChainId.toString(16)}` }],
+          });
+          console.log("✅ Network switched successfully");
+        } catch (switchError: any) {
+          console.log("❌ Network switch failed:", switchError);
+          if (switchError.code === 4902) {
+            // Chain not added, try to add it
+            const chainParams = network === "mainnet" ? {
+              chainId: '0xa4ec',
+              chainName: 'Celo',
+              nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+              rpcUrls: ['https://forno.celo.org'],
+              blockExplorerUrls: ['https://explorer.celo.org']
+            } : {
+              chainId: '0xaef3',
+              chainName: 'Celo Alfajores Testnet',
+              nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+              rpcUrls: ['https://alfajores-forno.celo-testnet.org'],
+              blockExplorerUrls: ['https://alfajores-blockscout.celo-testnet.org']
+            };
+            
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [chainParams],
+            });
+            console.log("✅ Network added successfully");
+          } else {
+            throw new Error(`Please switch to ${network === "mainnet" ? "Celo Mainnet" : "Celo Alfajores Testnet"}`);
+          }
+        }
+      }
+      
+      const signer = provider.getSigner();
+      console.log("✅ Signer created:", signer);
+      
+      // Get token contract
+      const tokenAddress = TOKEN_ADDRESSES[invoice.currency][network];
+      console.log("🎯 Token contract address:", tokenAddress);
+      
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+      console.log("✅ Token contract created:", tokenContract);
+      
+      // Convert amount to wei (considering token decimals)
+      console.log("🔢 Getting token decimals...");
+      const decimals = await tokenContract.decimals();
+      console.log("✅ Token decimals:", decimals);
+      
+      const amountInWei = ethers.utils.parseUnits(invoice.totalAmount, decimals);
+      console.log("✅ Amount in wei:", amountInWei.toString());
+      
+      // Check if user has enough balance
+      console.log("💰 Checking balance...");
+      const balance = await tokenContract.balanceOf(address);
+      console.log("✅ Current balance:", ethers.utils.formatUnits(balance, decimals));
+      
+      if (balance.lt(amountInWei)) {
+        throw new Error(`Insufficient ${invoice.currency} balance. You need ${invoice.totalAmount} ${invoice.currency}`);
+      }
+      
+      console.log("✅ Sufficient balance confirmed");
+      
+      // Send transaction
+      console.log("📤 Sending transaction...");
+      console.log("📤 Transfer details:", {
+        to: invoice.recipientAddress,
+        amount: amountInWei.toString(),
+        from: address
+      });
+      
+      const tx = await tokenContract.transfer(invoice.recipientAddress, amountInWei);
+      console.log("✅ Transaction sent:", tx.hash);
+      setProcessingTx(tx.hash);
+      
+      // Wait for transaction confirmation
+      console.log("⏳ Waiting for transaction confirmation...");
+      const receipt = await tx.wait();
+      console.log("✅ Transaction confirmed:", receipt);
+      
+      // Update invoice with transaction hash
       const updatedInvoice = { 
         ...invoice, 
         status: "paid" as const, 
-        txHash: mockTxHash 
+        txHash: receipt.transactionHash 
       };
       setInvoice(updatedInvoice);
-      // Save updated invoice to storage
       saveInvoiceToStorage(updatedInvoice);
+      setTxHash(receipt.transactionHash);
+      
+      console.log("✅ Invoice updated and saved");
+      
+      // Show success message
+      toast({
+        title: "Payment Successful!",
+        description: `Successfully sent ${invoice.totalAmount} ${invoice.currency} to ${invoice.recipientAddress}`,
+        variant: "default",
+      });
+      
+      setShowSuccessDialog(true);
+      
+    } catch (error: any) {
+      console.error("❌ Payment error:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      
+      let errorMessage = "Payment failed. Please try again.";
+      if (error.code === 4001) {
+        errorMessage = "Transaction was rejected by user.";
+      } else if (error.message?.includes("Insufficient")) {
+        errorMessage = error.message;
+      } else if (error.message?.includes("network")) {
+        errorMessage = "Network error. Please check your connection.";
+      } else if (error.message?.includes("No Ethereum provider")) {
+        errorMessage = "No wallet found. Please install MetaMask or another wallet.";
+      } else if (error.message?.includes("switch to")) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Payment Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      console.log("🏁 Payment process completed");
+      setIsPaymentPending(false);
+      setProcessingTx("");
     }
-    
-    setIsPaymentPending(false);
-    setShowSuccessDialog(true);
   };
 
   const handleCreateNewInvoice = () => {
@@ -340,9 +511,19 @@ const PayInvoice = () => {
                     <h3 className="text-sm font-medium text-muted-foreground mb-2">
                       Transaction Hash
                     </h3>
-                    <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
-                      {invoice.txHash}
-                    </code>
+                    <div className="flex items-center gap-2">
+                      <code className="px-2 py-1 bg-muted rounded text-sm font-mono flex-1">
+                        {invoice.txHash}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(getExplorerUrl(network, invoice.txHash!), '_blank')}
+                        className="text-xs"
+                      >
+                        View on Explorer
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -363,7 +544,16 @@ const PayInvoice = () => {
                       {isPaymentPending ? (
                         <div className="flex items-center gap-2">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Processing Payment...
+                          {processingTx ? (
+                            <div className="text-left">
+                              <div>Processing Payment...</div>
+                              <div className="text-xs opacity-80">
+                                {processingTx.substring(0, 10)}...
+                              </div>
+                            </div>
+                          ) : (
+                            "Processing Payment..."
+                          )}
                         </div>
                       ) : (
                         `Pay ${invoice.totalAmount} ${invoice.currency}`
@@ -395,7 +585,19 @@ const PayInvoice = () => {
             <DialogDescription className="text-center">
               Your payment has been processed successfully.
               <br />
-              <span className="font-mono text-sm">Transaction: {txHash}</span>
+              <div className="mt-2 space-y-2">
+                <span className="font-mono text-sm block">
+                  Transaction: {txHash}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(getExplorerUrl(network, txHash), '_blank')}
+                  className="text-xs"
+                >
+                  View on Explorer
+                </Button>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 mt-6">

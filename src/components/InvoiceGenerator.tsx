@@ -228,7 +228,7 @@ const InvoiceGenerator = ({ onInvoiceGenerated }: InvoiceGeneratorProps) => {
             <Label htmlFor="network" className="text-sm font-medium">
               Network
             </Label>
-            <Select value={network} onValueChange={setNetwork}>
+            <Select value={network} onValueChange={(value: "mainnet" | "alfajores") => setNetwork(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select network" />
               </SelectTrigger>
